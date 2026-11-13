@@ -58,6 +58,9 @@ main{flex:1;overflow:auto;padding:14px;padding-bottom:calc(110px + env(safe-area
 .ev{position:absolute;display:flex;flex-direction:column;justify-content:flex-start;border-radius:14px;padding:6px 10px;font-size:13px;overflow:hidden;text-align:left;color:var(--text);
   background:color-mix(in srgb,var(--c) 16%,white);border-left:5px solid var(--c);box-shadow:0 4px 12px color-mix(in srgb,var(--c) 22%,transparent)}
 .ev b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.ev b,.ev small{flex:none}
+.ev.short{flex-direction:row;align-items:center;gap:8px;padding:2px 10px}
+.ev.short b{flex:1;min-width:0}
 .ev small{color:color-mix(in srgb,var(--c) 75%,black);font-weight:500}
 .ev.done{opacity:.45;text-decoration:line-through}
 .now{position:absolute;left:50px;right:0;height:2px;background:var(--today);z-index:2}
@@ -360,7 +363,7 @@ function renderDay(){
     const t = TYPES[e.type] || TYPES.rdv;
     const top = s/60*H, height = Math.max((Math.min(en,1440)-s)/60*H, 26);
     const w = 100/ncol;
-    html += `<button class="ev ${isDone(e,ds)?'done':''}" style="--c:${t.color};top:${top}px;height:${height-2}px;left:calc(${col*w}% + 1px);width:calc(${w}% - 2px)" data-edit="${e.id}" data-ds="${ds}">
+    html += `<button class="ev ${isDone(e,ds)?'done':''} ${(Math.min(en,1440)-s) < 45 ? 'short' : ''}" style="--c:${t.color};top:${top}px;height:${height-2}px;left:calc(${col*w}% + 1px);width:calc(${w}% - 2px)" data-edit="${e.id}" data-ds="${ds}">
       <b>${e.type==='tache' ? (isDone(e,ds)?'☑ ':'☐ ') : t.icon+' '}${esc(e.title)}</b><small>${e.start}${e.end ? ' – '+e.end : ''}</small></button>`;
   });
   html += `</div>`;
