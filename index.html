@@ -157,6 +157,10 @@ textarea{min-height:64px;resize:vertical}
   backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .pad button:active{background:rgba(255,255,255,.4)}
 .pad button.txt{background:none;font-size:14px;font-weight:600}
+.btn-save{margin-left:auto;white-space:nowrap;padding:0 14px;height:40px;border-radius:14px;font-size:14px;font-weight:600;background:#fff;color:var(--accent1);box-shadow:var(--shadow)}
+.toast{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#2b2d42;color:#fff;
+  padding:10px 16px;border-radius:14px;font-size:14px;font-weight:500;z-index:60;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%;text-align:center}
+.toast.show{opacity:1}
 </style>
 </head>
 <body>
@@ -172,6 +176,7 @@ textarea{min-height:64px;resize:vertical}
       <button id="next" aria-label="Suivant">›</button>
     </div>
     <button class="btn-today" id="today">Aujourd'hui</button>
+    <button class="btn-save" id="quick-save">💾 Sauvegarder</button>
   </div>
   <div class="tabs" id="tabs">
     <button data-v="jour">Jour</button>
@@ -197,6 +202,7 @@ textarea{min-height:64px;resize:vertical}
 </div>
 <main id="main"></main>
 <button class="fab" id="fab" aria-label="Ajouter">+</button>
+<div class="toast" id="toast"></div>
 
 <div class="backdrop" id="modal">
   <div class="sheet">
@@ -689,6 +695,8 @@ $('pad').addEventListener('click', e => {
   if(pin.length === 6) onPinComplete();
 });
 $('lock-now').onclick = () => lockNow();
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3000); }
+$('quick-save').onclick = () => { $('exp').click(); toast('Sauvegarde téléchargée ✓'); };
 $('change-pin').onclick = () => { $('opts').classList.remove('open'); changing = true; pinMode = 'setup1'; showLock(); };
 document.addEventListener('visibilitychange', () => {
   if(document.hidden) hiddenAt = Date.now();
