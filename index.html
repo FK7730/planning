@@ -137,6 +137,26 @@ textarea{min-height:64px;resize:vertical}
 .actions .danger{color:#e5484d;background:#fff0f1}
 .menu-btn{width:40px;height:40px;border-radius:14px;background:#fff;font-size:20px;box-shadow:var(--shadow)}
 .note{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
+
+/* Écran de verrouillage */
+.lock{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,#7b61ff 0%,#a77bff 45%,#ff7eb3 100%);color:#fff;padding:env(safe-area-inset-top) 20px env(safe-area-inset-bottom)}
+.lock.hidden{display:none}
+.lock-in{width:100%;max-width:320px;text-align:center}
+.lock-ic{font-size:40px;margin-bottom:6px}
+.lock-t{font-size:20px;font-weight:600}
+.lock-sub{font-size:13px;opacity:.85;margin-top:4px;min-height:18px}
+.dots{display:flex;gap:16px;justify-content:center;margin:26px 0 8px}
+.dots span{width:14px;height:14px;border-radius:50%;border:2px solid #fff;transition:background .15s}
+.dots span.on{background:#fff}
+.lock-msg{min-height:22px;font-size:14px;font-weight:600}
+.shake{animation:shake .35s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-10px)}75%{transform:translateX(10px)}}
+.pad{display:grid;grid-template-columns:repeat(3,76px);gap:16px 22px;justify-content:center;margin-top:18px}
+.pad button{width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-size:30px;font-weight:500;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.pad button:active{background:rgba(255,255,255,.4)}
+.pad button.txt{background:none;font-size:14px;font-weight:600}
 </style>
 </head>
 <body>
@@ -160,6 +180,21 @@ textarea{min-height:64px;resize:vertical}
     <button data-v="annee">Année</button>
   </div>
 </header>
+<div class="lock" id="lock">
+  <div class="lock-in">
+    <div class="lock-ic">🔒</div>
+    <div class="lock-t" id="lock-t">Entre ton code</div>
+    <div class="lock-sub" id="lock-sub"></div>
+    <div class="dots" id="dots"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="lock-msg" id="lock-msg"></div>
+    <div class="pad" id="pad">
+      <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+      <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+      <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+      <button class="txt" data-k="forgot" id="k-forgot">Oublié ?</button><button data-k="0">0</button><button class="txt" data-k="del">Effacer</button>
+    </div>
+  </div>
+</div>
 <main id="main"></main>
 <button class="fab" id="fab" aria-label="Ajouter">+</button>
 
@@ -206,6 +241,11 @@ textarea{min-height:64px;resize:vertical}
       <button id="imp">Restaurer une sauvegarde</button>
     </div>
     <input type="file" id="impfile" accept="application/json,.json" hidden>
+    <div class="actions">
+      <button id="lock-now">🔒 Verrouiller</button>
+      <button id="change-pin">Changer le code</button>
+    </div>
+    <p class="note">Ton planning est chiffré avec ton code. Attention : la sauvegarde téléchargée, elle, n'est pas chiffrée. Garde-la dans un endroit sûr.</p>
     <div class="actions"><button id="opts-close">Fermer</button></div>
   </div>
 </div>
@@ -223,10 +263,25 @@ function load(){
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && Array.isArray(s.events)) return s; }catch(e){}
   return {events:[]};
 }
-let db = load();
+let db = {events:[]};
+const LOCK = KEY + '-lock';
+let cryptoKey = null;
+const toB64 = buf => { const u = new Uint8Array(buf); let s = ''; for(let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(pin, salt){
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:310000, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+async function writeEncrypted(salt){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, cryptoKey, new TextEncoder().encode(JSON.stringify(db)));
+  const rec = salt ? {salt: toB64(salt)} : JSON.parse(localStorage.getItem(LOCK));
+  rec.iv = toB64(iv); rec.data = toB64(ct);
+  localStorage.setItem(LOCK, JSON.stringify(rec));
+}
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify(db)); }
-  catch(e){ alert("Impossible d'enregistrer sur cet appareil."); }
+  if(!cryptoKey) return;
+  writeEncrypted().catch(() => alert("Impossible d'enregistrer sur cet appareil."));
 }
 
 /* ---------- Dates ---------- */
@@ -567,9 +622,79 @@ main.addEventListener('touchend', e => {
 }, {passive:true});
 
 // rafraîchir la ligne "maintenant" chaque minute
-setInterval(() => { if(view === 'jour' && !$('modal').classList.contains('open')) { const st = main.scrollTop; render(); main.scrollTop = st; } }, 60000);
+setInterval(() => { if(cryptoKey && view === 'jour' && !$('modal').classList.contains('open')) { const st = main.scrollTop; render(); main.scrollTop = st; } }, 60000);
 
-render();
+/* ---------- Code de verrouillage ---------- */
+let pinMode = localStorage.getItem(LOCK) ? 'unlock' : 'setup1';
+let pin = '', firstPin = '', busy = false, hiddenAt = 0, changing = false;
+function paintLock(msg){
+  const t = {unlock:'Entre ton code', setup1: changing ? 'Choisis ton nouveau code' : 'Crée ton code', setup2:'Confirme ton code'}[pinMode];
+  $('lock-t').textContent = t;
+  $('lock-sub').textContent = pinMode === 'unlock' ? '' : '6 chiffres, comme sur ton iPhone';
+  $('k-forgot').textContent = changing ? 'Annuler' : 'Oublié ?';
+  $('k-forgot').style.visibility = (pinMode === 'unlock' || changing) ? 'visible' : 'hidden';
+  [...$('dots').children].forEach((d,i) => d.classList.toggle('on', i < pin.length));
+  $('lock-msg').textContent = msg || '';
+}
+function showLock(){ $('lock').classList.remove('hidden'); pin = ''; paintLock(); }
+function fail(msg){ pin = ''; paintLock(msg); const d = $('dots'); d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake'); }
+function lockNow(){ cryptoKey = null; db = {events:[]}; main.innerHTML = ''; $('modal').classList.remove('open'); $('opts').classList.remove('open'); pinMode = 'unlock'; changing = false; showLock(); }
+function unlocked(){ $('lock').classList.add('hidden'); pin = ''; render(); }
+async function onPinComplete(){
+  busy = true; paintLock('…');
+  try{
+    if(pinMode === 'setup1'){ firstPin = pin; pin = ''; pinMode = 'setup2'; paintLock(); }
+    else if(pinMode === 'setup2'){
+      if(pin !== firstPin){ pinMode = 'setup1'; fail('Les codes ne correspondent pas'); }
+      else {
+        if(!changing){ try{ const old = JSON.parse(localStorage.getItem(KEY)); if(old && Array.isArray(old.events)) db = old; }catch(e){} }
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        cryptoKey = await deriveKey(pin, salt);
+        await writeEncrypted(salt);
+        try{ localStorage.removeItem(KEY); }catch(e){}
+        changing = false; unlocked();
+      }
+    } else {
+      const until = +(localStorage.getItem(LOCK+'-wait') || 0);
+      if(Date.now() < until){ fail('Trop d\'essais, réessaie dans ' + Math.ceil((until - Date.now())/1000) + ' s'); return; }
+      const rec = JSON.parse(localStorage.getItem(LOCK));
+      const key = await deriveKey(pin, fromB64(rec.salt));
+      try{
+        const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv: fromB64(rec.iv)}, key, fromB64(rec.data));
+        db = JSON.parse(new TextDecoder().decode(pt)); cryptoKey = key;
+        localStorage.removeItem(LOCK+'-fails'); unlocked();
+      }catch(e){
+        const n = +(localStorage.getItem(LOCK+'-fails') || 0) + 1;
+        localStorage.setItem(LOCK+'-fails', n);
+        if(n >= 5) localStorage.setItem(LOCK+'-wait', Date.now() + 30000 * Math.pow(2, n - 5));
+        fail(n >= 5 ? 'Code incorrect, attends un peu avant de réessayer' : 'Code incorrect');
+      }
+    }
+  } finally { busy = false; }
+}
+$('pad').addEventListener('click', e => {
+  const b = e.target.closest('[data-k]'); if(!b || busy) return;
+  const k = b.dataset.k;
+  if(k === 'del'){ pin = pin.slice(0,-1); paintLock(); return; }
+  if(k === 'forgot' && changing){ changing = false; pin = ''; if(cryptoKey){ pinMode = 'unlock'; $('lock').classList.add('hidden'); } else showLock(); return; }
+  if(k === 'forgot'){
+    if(confirm("Sans ton code, ton planning ne peut pas être récupéré.\n\nRéinitialiser l'appli ? Tout ton planning sera effacé (tu pourras le restaurer avec une sauvegarde).")){
+      ['','-fails','-wait'].forEach(x => localStorage.removeItem(LOCK + x)); localStorage.removeItem(KEY);
+      db = {events:[]}; pinMode = 'setup1'; changing = false; showLock();
+    }
+    return;
+  }
+  if(pin.length >= 6) return;
+  pin += k; paintLock();
+  if(pin.length === 6) onPinComplete();
+});
+$('lock-now').onclick = () => lockNow();
+$('change-pin').onclick = () => { $('opts').classList.remove('open'); changing = true; pinMode = 'setup1'; showLock(); };
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden) hiddenAt = Date.now();
+  else if(cryptoKey && Date.now() - hiddenAt > 60000) lockNow();
+});
+showLock();
 </script>
 </body>
 </html>
