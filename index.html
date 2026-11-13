@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Planning">
+<meta name="theme-color" content="#ffffff">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<title>Mon Planning</title>
+<style>
+:root{
+  --bg:#f6f7f9; --card:#fff; --text:#1f2937; --muted:#6b7280; --line:#e5e7eb;
+  --accent:#111827; --today:#ef4444;
+  --rdv:#2563eb; --tache:#d97706; --sport:#16a34a;
+  --hour:56px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:16px}
+body{display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:10px 12px 8px;position:sticky;top:0;z-index:5}
+.row{display:flex;align-items:center;gap:8px}
+.title{flex:1;font-weight:700;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav button{width:38px;height:38px;border-radius:10px;background:var(--bg);font-size:20px}
+.btn-today{padding:0 12px;height:38px;border-radius:10px;background:var(--bg);font-size:14px;font-weight:600}
+.tabs{display:flex;gap:4px;margin-top:10px;background:var(--bg);padding:4px;border-radius:12px}
+.tabs button{flex:1;padding:8px 0;border-radius:9px;font-size:14px;font-weight:600;color:var(--muted)}
+.tabs button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+main{flex:1;overflow:auto;padding:12px;padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:50%;
+  background:var(--accent);color:#fff;font-size:32px;line-height:1;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:6}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:10px}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;background:var(--c);vertical-align:-1px}
+.empty{color:var(--muted);font-size:14px;padding:6px 2px}
+
+/* Day */
+.allday{background:var(--card);border-radius:12px;padding:8px;margin-bottom:10px}
+.allday h4{margin:0 0 6px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase}
+.timeline{position:relative;background:var(--card);border-radius:12px;overflow:hidden}
+.hour{height:var(--hour);border-top:1px solid var(--line);position:relative}
+.hour:first-child{border-top:0}
+.hour span{position:absolute;left:6px;top:2px;font-size:11px;color:var(--muted)}
+.slots{position:absolute;left:48px;right:6px;top:0;bottom:0}
+.ev{position:absolute;border-radius:8px;padding:4px 6px;font-size:13px;color:#fff;overflow:hidden;
+  background:var(--c);border-left:4px solid rgba(0,0,0,.18);text-align:left}
+.ev b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev small{opacity:.9}
+.ev.done{opacity:.5;text-decoration:line-through}
+.now{position:absolute;left:44px;right:0;height:2px;background:var(--today);z-index:2}
+.now::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--today)}
+
+/* chips (week / lists) */
+.chip{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;margin-top:6px;border-radius:10px;
+  background:color-mix(in srgb,var(--c) 12%,white);border-left:4px solid var(--c);text-align:left;font-size:14px}
+.chip .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip .h{font-size:12px;color:var(--muted);white-space:nowrap}
+.chip.done .t{text-decoration:line-through;color:var(--muted)}
+.check{width:22px;height:22px;border-radius:6px;border:2px solid var(--c);flex:none;display:grid;place-items:center;color:#fff;font-size:14px}
+.check.on{background:var(--c)}
+
+/* Week */
+.wday{background:var(--card);border-radius:12px;padding:10px;margin-bottom:8px}
+.wday-h{display:flex;justify-content:space-between;align-items:center;width:100%;font-weight:700;text-transform:capitalize}
+.wday-h .add{font-size:22px;color:var(--muted);padding:0 6px}
+.wday.is-today .wday-h .d{color:var(--today)}
+
+/* Month */
+.mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.mhead{font-size:11px;color:var(--muted);text-align:center;padding:4px 0;font-weight:600;text-transform:uppercase}
+.mcell{background:var(--card);border-radius:8px;min-height:74px;padding:4px 3px;text-align:left;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.mcell.out{opacity:.4}
+.mcell .n{font-size:13px;font-weight:600;padding-left:2px}
+.mcell.is-today .n{background:var(--today);color:#fff;border-radius:50%;width:22px;height:22px;display:grid;place-items:center;padding:0}
+.mbar{font-size:10px;line-height:14px;border-radius:4px;padding:0 3px;color:#fff;background:var(--c);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.more{font-size:10px;color:var(--muted);padding-left:2px}
+
+/* Year */
+.ygrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:700px){.ygrid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:1000px){.ygrid{grid-template-columns:repeat(4,1fr)}}
+.ymonth{background:var(--card);border-radius:12px;padding:8px}
+.ymonth h4{margin:0 0 6px;font-size:14px;text-transform:capitalize;width:100%;text-align:left}
+.ymini{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;font-size:10px;text-align:center}
+.ymini .hd{color:var(--muted)}
+.ymini button{padding:3px 0;border-radius:4px;font-size:10px;position:relative}
+.ymini button.has::after{content:"";position:absolute;left:50%;bottom:0;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--c,#6b7280)}
+.ymini button.is-today{background:var(--today);color:#fff}
+
+/* Modal */
+.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:20;align-items:flex-end;justify-content:center}
+.backdrop.open{display:flex}
+.sheet{background:var(--card);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+@media(min-width:600px){.backdrop{align-items:center}.sheet{border-radius:18px}}
+.sheet h3{margin:0 0 12px}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px;font-weight:600}
+input[type=text],input[type=date],input[type=time],select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:16px;background:#fff;color:var(--text)}
+textarea{min-height:60px;resize:vertical}
+.types{display:flex;gap:6px}
+.types button{flex:1;padding:10px 4px;border-radius:10px;border:2px solid var(--c);color:var(--c);font-weight:600;font-size:13px}
+.types button.on{background:var(--c);color:#fff}
+.two{display:flex;gap:8px}.two>div{flex:1}
+.inline{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:15px;color:var(--text)}
+.inline input{width:20px;height:20px}
+.actions{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
+.actions button{flex:1;padding:12px;border-radius:12px;font-weight:700;background:var(--bg);min-width:100px}
+.actions .primary{background:var(--accent);color:#fff}
+.actions .danger{color:#dc2626}
+.menu-btn{width:38px;height:38px;border-radius:10px;background:var(--bg);font-size:20px}
+.note{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.4}
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div class="title" id="title"></div>
+    <button class="menu-btn" id="menu" aria-label="Options">⋯</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="nav row">
+      <button id="prev" aria-label="Précédent">‹</button>
+      <button id="next" aria-label="Suivant">›</button>
+    </div>
+    <button class="btn-today" id="today">Aujourd'hui</button>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-v="jour">Jour</button>
+    <button data-v="semaine">Semaine</button>
+    <button data-v="mois">Mois</button>
+    <button data-v="annee">Année</button>
+  </div>
+</header>
+<main id="main"></main>
+<button class="fab" id="fab" aria-label="Ajouter">+</button>
+
+<div class="backdrop" id="modal">
+  <div class="sheet">
+    <h3 id="m-title">Nouvel élément</h3>
+    <label>Type</label>
+    <div class="types" id="m-types"></div>
+    <label for="m-name">Titre</label>
+    <input type="text" id="m-name" placeholder="Ex : Dentiste, Salle de sport, Appeler France Travail…">
+    <label for="m-date">Date</label>
+    <input type="date" id="m-date">
+    <div class="inline"><input type="checkbox" id="m-allday"><span>Sans heure / toute la journée</span></div>
+    <div class="two" id="m-times">
+      <div><label for="m-start">Début</label><input type="time" id="m-start"></div>
+      <div><label for="m-end">Fin</label><input type="time" id="m-end"></div>
+    </div>
+    <label for="m-repeat">Répéter</label>
+    <select id="m-repeat">
+      <option value="none">Jamais</option>
+      <option value="daily">Tous les jours</option>
+      <option value="weekdays">Du lundi au vendredi</option>
+      <option value="weekly">Toutes les semaines</option>
+      <option value="biweekly">Toutes les 2 semaines</option>
+      <option value="monthly">Tous les mois</option>
+      <option value="yearly">Tous les ans</option>
+    </select>
+    <div id="m-until-wrap"><label for="m-until">Jusqu'au (facultatif)</label><input type="date" id="m-until"></div>
+    <label for="m-notes">Notes</label>
+    <textarea id="m-notes" placeholder="Adresse, détails…"></textarea>
+    <div class="actions" id="m-actions"></div>
+  </div>
+</div>
+
+<div class="backdrop" id="opts">
+  <div class="sheet">
+    <h3>Options</h3>
+    <p class="note">Ton planning est enregistré sur cet appareil (dans le navigateur). Pense à faire une sauvegarde de temps en temps, et utilise-la pour transférer ton planning sur un autre appareil.</p>
+    <div class="actions">
+      <button class="primary" id="exp">Sauvegarder (télécharger)</button>
+      <button id="imp">Restaurer une sauvegarde</button>
+    </div>
+    <input type="file" id="impfile" accept="application/json,.json" hidden>
+    <div class="actions"><button id="opts-close">Fermer</button></div>
+  </div>
+</div>
+
+<script>
+const TYPES = {
+  rdv:   {label:'Rendez-vous', color:'var(--rdv)'},
+  tache: {label:'Tâche',       color:'var(--tache)'},
+  sport: {label:'Sport / Perso', color:'var(--sport)'}
+};
+const KEY = 'mon-planning-v1';
+
+/* ---------- Stockage ---------- */
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && Array.isArray(s.events)) return s; }catch(e){}
+  return {events:[]};
+}
+let db = load();
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch(e){ alert("Impossible d'enregistrer sur cet appareil."); }
+}
+
+/* ---------- Dates ---------- */
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d); };
+const addDays = (d,n) => { const x = new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()+n); return x; };
+const startOfWeek = d => addDays(d, -((d.getDay()+6)%7));
+const dayDiff = (a,b) => Math.round((b - a)/86400000);
+const todayStr = () => ymd(new Date());
+const fmt = (opts) => new Intl.DateTimeFormat('fr-FR', opts);
+const toMin = t => { if(!t) return null; const [h,m] = t.split(':').map(Number); return h*60+m; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+/* ---------- Récurrence ---------- */
+function occursOn(ev, ds){
+  if(ds < ev.date) return false;
+  if(ev.until && ds > ev.until) return false;
+  if(ev.skip && ev.skip.includes(ds)) return false;
+  if(ds === ev.date) return true;
+  const a = parse(ev.date), b = parse(ds);
+  switch(ev.repeat){
+    case 'daily': return true;
+    case 'weekdays': { const w = b.getDay(); return w>=1 && w<=5; }
+    case 'weekly': return a.getDay() === b.getDay();
+    case 'biweekly': return dayDiff(a,b) % 14 === 0;
+    case 'monthly': return a.getDate() === b.getDate();
+    case 'yearly': return a.getDate() === b.getDate() && a.getMonth() === b.getMonth();
+    default: return false;
+  }
+}
+function eventsOn(ds){
+  return db.events.filter(e => occursOn(e, ds)).sort((x,y) => {
+    const a = x.start || '', b = y.start || '';
+    return a.localeCompare(b) || x.title.localeCompare(y.title);
+  });
+}
+function isDone(ev, ds){ return ev.repeat === 'none' ? !!ev.done : (ev.doneDates||[]).includes(ds); }
+function toggleDone(id, ds){
+  const ev = db.events.find(e => e.id === id); if(!ev) return;
+  if(ev.repeat === 'none') ev.done = !ev.done;
+  else {
+    ev.doneDates = ev.doneDates || [];
+    const i = ev.doneDates.indexOf(ds);
+    i >= 0 ? ev.doneDates.splice(i,1) : ev.doneDates.push(ds);
+  }
+  save(); render();
+}
+
+/* ---------- État de l'affichage ---------- */
+let view = 'jour';
+let cursor = new Date();
+try{ view = localStorage.getItem(KEY+'-view') || 'jour'; }catch(e){}
+if(!['jour','semaine','mois','annee'].includes(view)) view = 'jour';
+
+const $ = id => document.getElementById(id);
+const main = $('main');
+
+function setView(v){ view = v; try{ localStorage.setItem(KEY+'-view', v); }catch(e){} render(); }
+function move(dir){
+  if(view === 'jour') cursor = addDays(cursor, dir);
+  else if(view === 'semaine') cursor = addDays(cursor, 7*dir);
+  else if(view === 'mois') cursor = new Date(cursor.getFullYear(), cursor.getMonth()+dir, 1);
+  else cursor = new Date(cursor.getFullYear()+dir, cursor.getMonth(), 1);
+  render();
+}
+
+function title(){
+  if(view === 'jour') return fmt({weekday:'long', day:'numeric', month:'long', year:'numeric'}).format(cursor);
+  if(view === 'semaine'){
+    const s = startOfWeek(cursor), e = addDays(s,6);
+    const f = fmt({day:'numeric', month:'short'});
+    return `${f.format(s)} – ${f.format(e)} ${e.getFullYear()}`;
+  }
+  if(view === 'mois') return fmt({month:'long', year:'numeric'}).format(cursor);
+  return String(cursor.getFullYear());
+}
+
+function legend(){
+  return `<div class="legend">${Object.values(TYPES).map(t => `<span style="--c:${t.color}">${t.label}</span>`).join('')}</div>`;
+}
+
+function chip(ev, ds){
+  const t = TYPES[ev.type] || TYPES.rdv;
+  const done = isDone(ev, ds);
+  const hours = ev.start ? (ev.start + (ev.end ? ' – ' + ev.end : '')) : '';
+  const check = ev.type === 'tache'
+    ? `<span class="check ${done?'on':''}" data-toggle="${ev.id}" data-ds="${ds}">${done?'✓':''}</span>` : '';
+  return `<button class="chip ${done?'done':''}" style="--c:${t.color}" data-edit="${ev.id}" data-ds="${ds}">
+    ${check}<span class="t">${esc(ev.title)}</span><span class="h">${hours}</span></button>`;
+}
+
+/* ---------- Vue Jour ---------- */
+function renderDay(){
+  const ds = ymd(cursor);
+  const evs = eventsOn(ds);
+  const untimed = evs.filter(e => !e.start);
+  const timed = evs.filter(e => e.start).map(e => {
+    const s = toMin(e.start); let en = toMin(e.end);
+    if(en == null || en <= s) en = s + 60;
+    return {e, s, en};
+  });
+  // placement en colonnes si chevauchement
+  timed.sort((a,b) => a.s - b.s || b.en - a.en);
+  let cluster = [], end = -1;
+  const flush = () => {
+    const cols = [];
+    cluster.forEach(it => { let i = cols.findIndex(c => c <= it.s); if(i < 0){ i = cols.length; cols.push(0); } cols[i] = it.en; it.col = i; });
+    cluster.forEach(it => it.ncol = cols.length);
+    cluster = [];
+  };
+  timed.forEach(it => { if(cluster.length && it.s >= end) flush(); cluster.push(it); end = Math.max(end, it.en); });
+  if(cluster.length) flush();
+
+  const H = 56;
+  let html = legend();
+  html += `<div class="allday"><h4>Sans heure</h4>${untimed.length ? untimed.map(e => chip(e, ds)).join('') : '<div class="empty">Rien</div>'}</div>`;
+  html += `<div class="timeline" id="tl">`;
+  for(let h = 0; h < 24; h++) html += `<div class="hour" data-hour="${h}"><span>${pad(h)}:00</span></div>`;
+  html += `<div class="slots">`;
+  timed.forEach(({e,s,en,col,ncol}) => {
+    const t = TYPES[e.type] || TYPES.rdv;
+    const top = s/60*H, height = Math.max((Math.min(en,1440)-s)/60*H, 26);
+    const w = 100/ncol;
+    html += `<button class="ev ${isDone(e,ds)?'done':''}" style="--c:${t.color};top:${top}px;height:${height-2}px;left:calc(${col*w}% + 1px);width:calc(${w}% - 2px)" data-edit="${e.id}" data-ds="${ds}">
+      <b>${e.type==='tache' ? (isDone(e,ds)?'☑ ':'☐ ') : ''}${esc(e.title)}</b><small>${e.start}${e.end ? ' – '+e.end : ''}</small></button>`;
+  });
+  html += `</div>`;
+  if(ds === todayStr()){
+    const n = new Date(); html += `<div class="now" style="top:${(n.getHours()*60+n.getMinutes())/60*H}px"></div>`;
+  }
+  html += `</div>`;
+  main.innerHTML = html;
+
+  const focus = ds === todayStr() ? Math.max(new Date().getHours()-1, 0) : (timed.length ? Math.floor(timed[0].s/60) : 7);
+  const tl = $('tl');
+  main.scrollTop = tl.offsetTop + focus*H - 10;
+  tl.querySelectorAll('.hour').forEach(el => el.addEventListener('click', () => openForm(null, ds, pad(+el.dataset.hour)+':00')));
+}
+
+/* ---------- Vue Semaine ---------- */
+function renderWeek(){
+  const s = startOfWeek(cursor);
+  const f = fmt({weekday:'long', day:'numeric', month:'short'});
+  let html = legend();
+  for(let i = 0; i < 7; i++){
+    const d = addDays(s,i), ds = ymd(d), evs = eventsOn(ds);
+    html += `<div class="wday ${ds===todayStr()?'is-today':''}">
+      <div class="wday-h"><button class="d" data-goday="${ds}">${f.format(d)}</button><button class="add" data-add="${ds}">+</button></div>
+      ${evs.length ? evs.map(e => chip(e, ds)).join('') : '<div class="empty">Rien de prévu</div>'}
+    </div>`;
+  }
+  main.innerHTML = html;
+  main.scrollTop = 0;
+}
+
+/* ---------- Vue Mois ---------- */
+function renderMonth(){
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const start = startOfWeek(first);
+  const days = ['lun','mar','mer','jeu','ven','sam','dim'];
+  let html = legend() + `<div class="mgrid">${days.map(d => `<div class="mhead">${d}</div>`).join('')}`;
+  for(let i = 0; i < 42; i++){
+    const d = addDays(start,i), ds = ymd(d), evs = eventsOn(ds);
+    const out = d.getMonth() !== first.getMonth();
+    html += `<button class="mcell ${out?'out':''} ${ds===todayStr()?'is-today':''}" data-goday="${ds}">
+      <span class="n">${d.getDate()}</span>
+      ${evs.slice(0,3).map(e => `<span class="mbar" style="--c:${(TYPES[e.type]||TYPES.rdv).color}">${esc(e.title)}</span>`).join('')}
+      ${evs.length > 3 ? `<span class="more">+${evs.length-3}</span>` : ''}
+    </button>`;
+  }
+  main.innerHTML = html + `</div>`;
+  main.scrollTop = 0;
+}
+
+/* ---------- Vue Année ---------- */
+function renderYear(){
+  const y = cursor.getFullYear();
+  const mf = fmt({month:'long'});
+  let html = legend() + `<div class="ygrid">`;
+  for(let m = 0; m < 12; m++){
+    const first = new Date(y, m, 1);
+    html += `<div class="ymonth"><h4><button data-gomonth="${m}">${mf.format(first)}</button></h4><div class="ymini">`;
+    html += ['L','M','M','J','V','S','D'].map(d => `<span class="hd">${d}</span>`).join('');
+    const offset = (first.getDay()+6)%7;
+    for(let i = 0; i < offset; i++) html += `<span></span>`;
+    const nb = new Date(y, m+1, 0).getDate();
+    for(let d = 1; d <= nb; d++){
+      const ds = ymd(new Date(y,m,d)), evs = eventsOn(ds);
+      const c = evs.length ? (TYPES[evs[0].type]||TYPES.rdv).color : '';
+      html += `<button class="${evs.length?'has':''} ${ds===todayStr()?'is-today':''}" style="${c?`--c:${c}`:''}" data-goday="${ds}">${d}</button>`;
+    }
+    html += `</div></div>`;
+  }
+  main.innerHTML = html + `</div>`;
+  main.scrollTop = 0;
+}
+
+function render(){
+  { const t = title(); $('title').textContent = t.charAt(0).toUpperCase() + t.slice(1); }
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
+  ({jour:renderDay, semaine:renderWeek, mois:renderMonth, annee:renderYear})[view]();
+}
+
+/* ---------- Clics dans la zone principale ---------- */
+main.addEventListener('click', e => {
+  const tg = e.target.closest('[data-toggle]');
+  if(tg){ e.stopPropagation(); toggleDone(tg.dataset.toggle, tg.dataset.ds); return; }
+  const ed = e.target.closest('[data-edit]');
+  if(ed){ e.stopPropagation(); openForm(db.events.find(x => x.id === ed.dataset.edit), ed.dataset.ds); return; }
+  const gd = e.target.closest('[data-goday]');
+  if(gd){ cursor = parse(gd.dataset.goday); setView('jour'); return; }
+  const gm = e.target.closest('[data-gomonth]');
+  if(gm){ cursor = new Date(cursor.getFullYear(), +gm.dataset.gomonth, 1); setView('mois'); return; }
+  const ad = e.target.closest('[data-add]');
+  if(ad){ openForm(null, ad.dataset.add); }
+});
+
+/* ---------- Formulaire ---------- */
+let editing = null, editingDs = null, formType = 'rdv';
+function paintTypes(){
+  $('m-types').innerHTML = Object.entries(TYPES).map(([k,t]) =>
+    `<button type="button" data-type="${k}" class="${k===formType?'on':''}" style="--c:${t.color}">${t.label}</button>`).join('');
+}
+$('m-types').addEventListener('click', e => { const b = e.target.closest('[data-type]'); if(b){ formType = b.dataset.type; paintTypes(); } });
+$('m-allday').addEventListener('change', () => { $('m-times').style.display = $('m-allday').checked ? 'none' : 'flex'; });
+$('m-repeat').addEventListener('change', () => { $('m-until-wrap').style.display = $('m-repeat').value === 'none' ? 'none' : 'block'; });
+
+function openForm(ev, ds, hour){
+  editing = ev || null; editingDs = ds || ymd(cursor);
+  formType = ev ? ev.type : 'rdv';
+  $('m-title').textContent = ev ? 'Modifier' : 'Nouvel élément';
+  $('m-name').value = ev ? ev.title : '';
+  $('m-date').value = ev ? ev.date : editingDs;
+  const allday = ev ? !ev.start : false;
+  $('m-allday').checked = allday;
+  $('m-start').value = ev ? (ev.start||'') : (hour || '09:00');
+  $('m-end').value = ev ? (ev.end||'') : (hour ? pad((+hour.slice(0,2)+1)%24)+':00' : '10:00');
+  $('m-repeat').value = ev ? (ev.repeat||'none') : 'none';
+  $('m-until').value = ev ? (ev.until||'') : '';
+  $('m-notes').value = ev ? (ev.notes||'') : '';
+  $('m-times').style.display = allday ? 'none' : 'flex';
+  $('m-until-wrap').style.display = $('m-repeat').value === 'none' ? 'none' : 'block';
+  paintTypes();
+
+  let a = `<button class="primary" id="m-save">Enregistrer</button><button id="m-cancel">Annuler</button>`;
+  if(ev){
+    if(ev.repeat && ev.repeat !== 'none'){
+      a += `<button class="danger" id="m-del-one">Supprimer ce jour seulement</button><button class="danger" id="m-del">Supprimer toute la série</button>`;
+    } else a += `<button class="danger" id="m-del">Supprimer</button>`;
+  }
+  $('m-actions').innerHTML = a;
+  $('m-save').onclick = saveForm;
+  $('m-cancel').onclick = closeForm;
+  if($('m-del')) $('m-del').onclick = () => { if(confirm('Supprimer définitivement ?')){ db.events = db.events.filter(x => x.id !== ev.id); save(); closeForm(); render(); } };
+  if($('m-del-one')) $('m-del-one').onclick = () => { ev.skip = ev.skip || []; ev.skip.push(editingDs); save(); closeForm(); render(); };
+  $('modal').classList.add('open');
+  if(!ev) setTimeout(() => $('m-name').focus(), 50);
+}
+function closeForm(){ $('modal').classList.remove('open'); }
+function saveForm(){
+  const name = $('m-name').value.trim();
+  if(!name){ $('m-name').focus(); $('m-name').style.borderColor = '#dc2626'; return; }
+  $('m-name').style.borderColor = '';
+  const allday = $('m-allday').checked;
+  const data = {
+    title: name, type: formType, date: $('m-date').value || editingDs,
+    start: allday ? '' : $('m-start').value, end: allday ? '' : $('m-end').value,
+    repeat: $('m-repeat').value, until: $('m-repeat').value === 'none' ? '' : $('m-until').value,
+    notes: $('m-notes').value.trim()
+  };
+  if(editing) Object.assign(editing, data);
+  else db.events.push({id: uid(), done:false, doneDates:[], skip:[], ...data});
+  save(); closeForm();
+  cursor = parse(data.date); render();
+}
+$('modal').addEventListener('click', e => { if(e.target.id === 'modal') closeForm(); });
+
+/* ---------- Options : sauvegarde ---------- */
+$('menu').onclick = () => $('opts').classList.add('open');
+$('opts-close').onclick = () => $('opts').classList.remove('open');
+$('opts').addEventListener('click', e => { if(e.target.id === 'opts') $('opts').classList.remove('open'); });
+$('exp').onclick = () => {
+  const blob = new Blob([JSON.stringify(db, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `planning-sauvegarde-${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+$('imp').onclick = () => $('impfile').click();
+$('impfile').onchange = async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    if(!Array.isArray(data.events)) throw 0;
+    if(confirm(`Remplacer ton planning actuel par cette sauvegarde (${data.events.length} éléments) ?`)){
+      db = data; save(); render(); $('opts').classList.remove('open');
+    }
+  }catch(err){ alert("Ce fichier n'est pas une sauvegarde valide."); }
+  e.target.value = '';
+};
+
+/* ---------- Navigation ---------- */
+$('prev').onclick = () => move(-1);
+$('next').onclick = () => move(1);
+$('today').onclick = () => { cursor = new Date(); render(); };
+$('tabs').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if(b) setView(b.dataset.v); });
+$('fab').onclick = () => openForm(null, view === 'jour' ? ymd(cursor) : todayStr());
+
+// glisser à gauche / à droite pour changer de période
+let tx = null, ty = null;
+main.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, {passive:true});
+main.addEventListener('touchend', e => {
+  if(tx == null) return;
+  const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+  if(Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)*1.5) move(dx < 0 ? 1 : -1);
+  tx = null;
+}, {passive:true});
+
+// rafraîchir la ligne "maintenant" chaque minute
+setInterval(() => { if(view === 'jour' && !$('modal').classList.contains('open')) { const st = main.scrollTop; render(); main.scrollTop = st; } }, 60000);
+
+render();
+</script>
+</body>
+</html>
