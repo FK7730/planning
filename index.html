@@ -64,6 +64,13 @@ main{flex:1;overflow:auto;padding:12px;padding-bottom:calc(100px + env(safe-area
 .check{width:22px;height:22px;border-radius:6px;border:2px solid var(--c);flex:none;display:grid;place-items:center;color:#fff;font-size:14px}
 .check.on{background:var(--c)}
 
+/* À faire (sans date) */
+.todo{background:var(--card);border-radius:12px;padding:10px;margin-bottom:10px;border:1px solid var(--line)}
+.todo-h{display:flex;justify-content:space-between;align-items:center;width:100%;font-weight:700;font-size:15px}
+.todo-h .cnt{background:var(--tache);color:#fff;border-radius:999px;padding:1px 9px;font-size:13px;margin-left:6px}
+.todo-h .arr{color:var(--muted);font-size:14px}
+.todo .chip .t{white-space:normal}
+
 /* Week */
 .wday{background:var(--card);border-radius:12px;padding:10px;margin-bottom:8px}
 .wday-h{display:flex;justify-content:space-between;align-items:center;width:100%;font-weight:700;text-transform:capitalize}
@@ -145,6 +152,8 @@ textarea{min-height:60px;resize:vertical}
     <div class="types" id="m-types"></div>
     <label for="m-name">Titre</label>
     <input type="text" id="m-name" placeholder="Ex : Dentiste, Salle de sport, Appeler France Travail…">
+    <div class="inline"><input type="checkbox" id="m-nodate"><span>Sans date (liste « À faire »)</span></div>
+    <div id="m-dated">
     <label for="m-date">Date</label>
     <input type="date" id="m-date">
     <div class="inline"><input type="checkbox" id="m-allday"><span>Sans heure / toute la journée</span></div>
@@ -163,6 +172,7 @@ textarea{min-height:60px;resize:vertical}
       <option value="yearly">Tous les ans</option>
     </select>
     <div id="m-until-wrap"><label for="m-until">Jusqu'au (facultatif)</label><input type="date" id="m-until"></div>
+    </div>
     <label for="m-notes">Notes</label>
     <textarea id="m-notes" placeholder="Adresse, détails…"></textarea>
     <div class="actions" id="m-actions"></div>
@@ -216,6 +226,7 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7
 
 /* ---------- Récurrence ---------- */
 function occursOn(ev, ds){
+  if(!ev.date) return false;
   if(ds < ev.date) return false;
   if(ev.until && ds > ev.until) return false;
   if(ev.skip && ev.skip.includes(ds)) return false;
@@ -292,6 +303,16 @@ function chip(ev, ds){
     ${check}<span class="t">${esc(ev.title)}</span><span class="h">${hours}</span></button>`;
 }
 
+/* ---------- Liste À faire (tâches sans date) ---------- */
+let todoOpen = false;
+try{ todoOpen = localStorage.getItem(KEY+'-todo') === '1'; }catch(e){}
+function todoCard(){
+  const items = db.events.filter(e => !e.date && !e.done);
+  if(!items.length) return '';
+  return `<div class="todo"><button class="todo-h" id="todo-toggle"><span>À faire<span class="cnt">${items.length}</span></span><span class="arr">${todoOpen ? 'Masquer ▲' : 'Voir ▼'}</span></button>
+    ${todoOpen ? items.map(e => chip(e, '')).join('') : ''}</div>`;
+}
+
 /* ---------- Vue Jour ---------- */
 function renderDay(){
   const ds = ymd(cursor);
@@ -315,7 +336,7 @@ function renderDay(){
   if(cluster.length) flush();
 
   const H = 56;
-  let html = legend();
+  let html = legend() + (ds === todayStr() ? todoCard() : '');
   html += `<div class="allday"><h4>Sans heure</h4>${untimed.length ? untimed.map(e => chip(e, ds)).join('') : '<div class="empty">Rien</div>'}</div>`;
   html += `<div class="timeline" id="tl">`;
   for(let h = 0; h < 24; h++) html += `<div class="hour" data-hour="${h}"><span>${pad(h)}:00</span></div>`;
@@ -344,7 +365,8 @@ function renderDay(){
 function renderWeek(){
   const s = startOfWeek(cursor);
   const f = fmt({weekday:'long', day:'numeric', month:'short'});
-  let html = legend();
+  const inWeek = todayStr() >= ymd(s) && todayStr() <= ymd(addDays(s,6));
+  let html = legend() + (inWeek ? todoCard() : '');
   for(let i = 0; i < 7; i++){
     const d = addDays(s,i), ds = ymd(d), evs = eventsOn(ds);
     html += `<div class="wday ${ds===todayStr()?'is-today':''}">
@@ -406,6 +428,7 @@ function render(){
 
 /* ---------- Clics dans la zone principale ---------- */
 main.addEventListener('click', e => {
+  if(e.target.closest('#todo-toggle')){ todoOpen = !todoOpen; try{ localStorage.setItem(KEY+'-todo', todoOpen?'1':'0'); }catch(_){} const st = main.scrollTop; render(); main.scrollTop = st; return; }
   const tg = e.target.closest('[data-toggle]');
   if(tg){ e.stopPropagation(); toggleDone(tg.dataset.toggle, tg.dataset.ds); return; }
   const ed = e.target.closest('[data-edit]');
@@ -425,6 +448,7 @@ function paintTypes(){
     `<button type="button" data-type="${k}" class="${k===formType?'on':''}" style="--c:${t.color}">${t.label}</button>`).join('');
 }
 $('m-types').addEventListener('click', e => { const b = e.target.closest('[data-type]'); if(b){ formType = b.dataset.type; paintTypes(); } });
+$('m-nodate').addEventListener('change', () => { $('m-dated').style.display = $('m-nodate').checked ? 'none' : 'block'; if($('m-nodate').checked){ formType = 'tache'; paintTypes(); } });
 $('m-allday').addEventListener('change', () => { $('m-times').style.display = $('m-allday').checked ? 'none' : 'flex'; });
 $('m-repeat').addEventListener('change', () => { $('m-until-wrap').style.display = $('m-repeat').value === 'none' ? 'none' : 'block'; });
 
@@ -433,7 +457,10 @@ function openForm(ev, ds, hour){
   formType = ev ? ev.type : 'rdv';
   $('m-title').textContent = ev ? 'Modifier' : 'Nouvel élément';
   $('m-name').value = ev ? ev.title : '';
-  $('m-date').value = ev ? ev.date : editingDs;
+  const nodate = ev ? !ev.date : false;
+  $('m-nodate').checked = nodate;
+  $('m-dated').style.display = nodate ? 'none' : 'block';
+  $('m-date').value = ev && ev.date ? ev.date : (editingDs || todayStr());
   const allday = ev ? !ev.start : false;
   $('m-allday').checked = allday;
   $('m-start').value = ev ? (ev.start||'') : (hour || '09:00');
@@ -464,17 +491,19 @@ function saveForm(){
   const name = $('m-name').value.trim();
   if(!name){ $('m-name').focus(); $('m-name').style.borderColor = '#dc2626'; return; }
   $('m-name').style.borderColor = '';
-  const allday = $('m-allday').checked;
+  const nodate = $('m-nodate').checked;
+  const allday = nodate || $('m-allday').checked;
   const data = {
-    title: name, type: formType, date: $('m-date').value || editingDs,
+    title: name, type: formType, date: nodate ? '' : ($('m-date').value || editingDs || todayStr()),
     start: allday ? '' : $('m-start').value, end: allday ? '' : $('m-end').value,
-    repeat: $('m-repeat').value, until: $('m-repeat').value === 'none' ? '' : $('m-until').value,
+    repeat: nodate ? 'none' : $('m-repeat').value, until: (nodate || $('m-repeat').value === 'none') ? '' : $('m-until').value,
     notes: $('m-notes').value.trim()
   };
   if(editing) Object.assign(editing, data);
   else db.events.push({id: uid(), done:false, doneDates:[], skip:[], ...data});
   save(); closeForm();
-  cursor = parse(data.date); render();
+  if(data.date) cursor = parse(data.date);
+  render();
 }
 $('modal').addEventListener('click', e => { if(e.target.id === 'modal') closeForm(); });
 
